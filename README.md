@@ -3,6 +3,8 @@ MSR605
 
 A C/CPP Library for interacting with the the MSR605 (and other MSR206 compatible) Magstripe Reader/Writers.
 
+Added write support, for the moment only for BPC 8 8 8 mode.
+
 Example
 =======
 <pre>
