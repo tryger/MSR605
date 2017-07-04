@@ -34,7 +34,7 @@
 #include <iostream>
 #include <signal.h>
 
-//#define DEBUG
+#define DEBUG
 
 using namespace std;
 
@@ -95,7 +95,7 @@ int MSR605::write_bytes(char *buf, int num)
 
 	#ifdef DEBUG
 	printf("Sent Data(%d bytes): ", num);
-	for(int x = 0; x < num; x++) printf("%02x ", buf[x]);
+	for(int x = 0; x < num; x++) printf("%02hhx ", buf[x]);
 	printf("\n");
 	#endif
 	
@@ -118,7 +118,7 @@ int MSR605::read_bytes(unsigned char *buf, int num)
 	
 	#ifdef DEBUG
 	printf("Received Data(%d bytes): ", num);
-	for(int x = 0; x < num; x++) printf("%02x ", buf[x]);
+	for(int x = 0; x < num; x++) printf("%02hhx ", buf[x]);
 	printf("\n");
 	#endif
 	
@@ -216,8 +216,8 @@ void MSR605::readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char t
 	if(read_bytes((unsigned char*)&buf, 1) != 1) {
 		throw "Unable to read data: Expected Track Length";
 	}
-	
-	printf("Track Length  %02x \n",buf[0]);
+
+	printf("Track Length  %02d \n",buf[0]);
 
 	if(buf[0] > 254) {
 		throw "Unable to read data: Invalid length received";
@@ -233,7 +233,7 @@ void MSR605::readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char t
 	
 	/* track data */
 	read_bytes((unsigned char*)&buf, len);
-	
+
 	if(trackOptions == TRACK_7BIT) decode_7bit((unsigned char*)&buf, len, outBuf, outLen);
 	if(trackOptions == TRACK_5BIT) decode_5bit((unsigned char*)&buf, len, outBuf, outLen);
 	if(trackOptions == TRACK_8BIT) decode_8bit((unsigned char*)&buf, len, outBuf, outLen);
@@ -270,7 +270,7 @@ magnetic_stripe_t *MSR605::readCard_raw(char track1_format, char track2_format, 
 	
 	/* check for ack */
 	read_bytes((unsigned char*)&buf, 2);
-	if(memcmp(buf, MSR_READ_ACK, 2) != 0) {
+	if(memcmp(buf, MSR_DATA_HEADER, 2) != 0) {
 		free_ms_data(ms_data);
 		throw "Unable to read data: Invalid Response";
 	}
@@ -335,7 +335,7 @@ magnetic_stripe_t *MSR605::readCard_iso(char track1_format, char track2_format, 
 	
 	/* check for ack */
 	read_bytes((unsigned char*)&buf, 2);
-	if(memcmp(buf, MSR_READ_ACK, 2) != 0) {
+	if(memcmp(buf, MSR_DATA_HEADER, 2) != 0) {
 		free_ms_data(ms_data);
 		throw "Unable to read data: Invalid Response";
 	}
@@ -463,18 +463,23 @@ void MSR605::decode_5bit(unsigned char *buf, unsigned int len, unsigned char * &
 
 void MSR605::decode_8bit(unsigned char *buf, unsigned int len, unsigned char * &outBuf, unsigned int &outLen)
 {
-	//unsigned int bytes = len;
-	unsigned int bytes = (len * 8) /8;
+	unsigned int bytes = len;
+	//unsigned int bytes = (len * 8) /8;
 	outBuf = (unsigned char *)malloc(len);
 	unsigned int tempLen = 0;
 	//char *test;
 	//unsigned int *len_ptr=len;
 	char *test;	
 	test=(char*)outBuf;
-	for(int y = 0; y < (len/8); y++) {
+
+	for(int i=0; i < len; i++)
+		test[i] = buf[i];
+	//printf("\n");
+
+	/*for(int y = 0; y < (len/8); y++) {
 	if(*buf == 0x00 || buf[1] == 0x00) break;
 	
-	test[0] =buf[0]; 
+	test[0] =buf[0];
 	test[1] =buf[1]; 
 	test[2] = buf[2];  
 	test[3] = buf[3]; 
@@ -487,7 +492,7 @@ void MSR605::decode_8bit(unsigned char *buf, unsigned int len, unsigned char * &
 	buf += 8;
 	test += 8;
 	
-	}
+	}*/
 	outLen=len;
 
 }
@@ -631,4 +636,86 @@ void MSR605::getFirmware()
 	printf("Firmware: %s\n",firmware);
 	free(firmware);
 }
+/*-------------------------------------------------------------------------------------*/
 
+void MSR605::setHiCo()
+{
+	short res;
+	write_bytes(MSR_HICO, 2);
+	read_bytes((unsigned char *)&res, 2);
+	if(res != 0x1B30)
+		throw "FAILED to set HiCo!";
+
+	printf("Interface set to HiCo");
+		
+}
+/*-------------------------------------------------------------------------------------*/
+
+void MSR605::setLoCo()
+{
+
+	short res;
+	write_bytes(MSR_LOCO, 2);
+	read_bytes((unsigned char *)&res, 2);
+	if(res != 0x1B30)
+		throw "FAILED to set LoCo!";
+	
+	printf("Interface set to LoCo");
+}
+
+unsigned char reverseByte(register unsigned char b) {
+   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+   return b;
+}
+
+void reverseTrack(unsigned char *t, int len)
+{
+	for(int i=0; i < len; i++) {
+		t[i] = reverseByte(t[i]);
+		printf("%02X ", t[i]);
+	}
+	printf("\n");
+}
+
+void MSR605::writeCard_raw(magnetic_stripe_t *t)
+{
+	unsigned char len[2];
+
+	write_bytes(MSR_WRITE_RAW, 2);
+	write_bytes(MSR_DATA_HEADER, 2);
+
+	write_bytes("\x1b\x01", 2);
+	write_bytes((char *) &t->t1_len, 1);
+	if(t->t1_len != 0) {
+		reverseTrack(t->track1, t->t1_len);
+		write_bytes((char *) t->track1, t->t1_len);
+	}
+
+	write_bytes("\x1b\x02", 2);
+	write_bytes((char *) &t->t2_len, 1);
+	if(t->t2_len != 0) {
+		reverseTrack(t->track2, t->t2_len);
+		write_bytes((char *) t->track2, t->t2_len);
+	}
+	
+	write_bytes("\x1b\x03", 2);
+	write_bytes((char *) &t->t3_len, 1);
+	if(t->t3_len != 0) {
+		reverseTrack(t->track3, t->t3_len);
+		write_bytes((char *) t->track3, t->t3_len);
+	}
+
+	write_bytes(MSR_DATA_END, 3);
+
+	printf("Waiting for swipe...\n");
+	fflush(stdout);
+
+	read_bytes(len, 2);
+
+	if(len[1] == '\x30')
+		printf("Successfully writen!\n");
+	else
+		printf("WRITE ERROR\n");
+}

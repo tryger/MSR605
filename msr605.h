@@ -13,6 +13,7 @@
 #define BAUDRATE 9600
 
 /* MSR 206 Commands */
+#define MSR_ESC "\x1b"
 #define MSR_RESET "\x1b\x61"
 #define MSR_COMM_TEST "\x1b\x65"
 #define MSR_COMM_TEST_ACK "\x1b\x79"
@@ -24,7 +25,7 @@
 #define MSR_SET_BPC "\x1b\x6f"
 #define MSR_SET_BPC_ACK "\x1b\x30"
 #define MSR_READ_RAW "\x1b\x6d"
-#define MSR_READ_ACK "\x1b\x73"
+//#define MSR_READ_ACK "\x1b\x73"
 #define MSR_WRITE_ISO "\x1b\x77"
 #define MSR_CHECK_ZEROS "\x1b\x6c"
 #define MSR_END_READ "\x3f\x1c\x1b"
@@ -34,6 +35,9 @@
 
 #define MSR_WRITE_RAW "\x1b\x6e"
 #define MSR_READ_ISO "\x1b\x72"
+
+#define MSR_DATA_HEADER "\x1b\x73"
+#define MSR_DATA_END "\x3f\x1c\x1b"
 
 
 /* MSR Status Byte Read */
@@ -87,6 +91,7 @@ class MSR605
 		/* card commands */
 		magnetic_stripe_t *readCard_raw(char track1_format, char track2_format, char track3_format);
                 magnetic_stripe_t *readCard_iso(char track1_format, char track2_format, char track3_format);
+		void writeCard_raw(magnetic_stripe_t *t);
 
 		
 		/* utility functions */
@@ -115,6 +120,9 @@ class MSR605
 		void getLeadingZeros(leading_zeros_t *zeros);
 		void getFirmware();
 		void getModel();
+
+		void setHiCo();
+		void setLoCo();
 		
 	private:
 		int fd;

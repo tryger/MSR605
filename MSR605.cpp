@@ -44,7 +44,7 @@ void printTrack(const char *msg, unsigned char *buf, unsigned int len)
 {
 	printf("size: %d",len);
 	printf("[%s]: ", msg);
-	for(int x = 0; x < len; x++) printf("%02x", buf[x]);
+	for(int x = 0; x < len; x++) printf("%02X", buf[x]);
 	printf("\n");
 }
 
@@ -62,7 +62,7 @@ void license(){
 
 int main (int argc, const char * const argv[]) {
   
-	if ( argc != 5 ){
+	if ( argc != 6 ){
 	      license();
 	      printf( "\tusage: %s <track1 bit> <track2 bit> <track3 bit> <mode>\n", argv[0] );
 	      printf( "\t\t <track bit> 5|7|8\n");
@@ -72,6 +72,8 @@ int main (int argc, const char * const argv[]) {
 	  int t2 = atoi(argv[2]);
 	  int t3 = atoi(argv[3]);
 	  int mode = atoi(argv[4]);
+	  char op = argv[5][0];
+
 	  if (t1 < 5|| t1 > 8 || t1 == 6) {
 	    printf("ERROR: Track 1 bits must be either 5,7 or 8\n");
 	  
@@ -102,8 +104,24 @@ int main (int argc, const char * const argv[]) {
 		printf("Initialized MSR605.\n");
 
 		/* read card */
-		while(1) {
-		  
+
+		if(op == 'w') {
+			magnetic_stripe_t d;
+		
+			//d.track1 = (unsigned char *)malloc(1);
+			//d.track1[0] = '\x00';
+			d.t1_len = 0;
+		
+			d.track2 = (unsigned char *)malloc(6);
+			strncpy((char *)d.track2, "\xaa\xaa\xaa\xaa\xaa\xaa", 6);
+			d.t2_len = 6;
+		
+			//d.track3 = (unsigned char *)malloc(1);
+			//d.track3[0] = '\x00';
+			d.t3_len = 0;
+
+			msr->writeCard_raw(&d);
+		} else {
 		  msr->setAllLEDOff();
 		  printf("Waiting for swipe...\n");
 		  switch(mode){
