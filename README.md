@@ -16,7 +16,7 @@ Examples
 =======
 `./msr605 8 8 8 1 r` Read Raw, BPC 8 8 8
 
-`./msr605 8 8 8 2 3` Read ISO, BPC 8 8 8 
+`./msr605 8 8 8 2 r` Read ISO, BPC 8 8 8 
 
 `./msr605 8 8 8 1 w` Write Raw, BPC 8 8 8
 
