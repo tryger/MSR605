@@ -44,7 +44,7 @@ void printTrack(const char *msg, unsigned char *buf, unsigned int len)
 {
 	printf("size: %d",len);
 	printf("[%s]: ", msg);
-	for(int x = 0; x < len; x++) printf("%02x", buf[x]);
+	for(int x = 0; x < len; x++) printf("%02X", buf[x]);
 	printf("\n");
 }
 
@@ -62,7 +62,7 @@ void license(){
 
 int main (int argc, const char * const argv[]) {
   
-	if ( argc != 5 ){
+	if ( argc != 6 ){
 	      license();
 	      printf( "\tusage: %s <track1 bit> <track2 bit> <track3 bit> <mode>\n", argv[0] );
 	      printf( "\t\t <track bit> 5|7|8\n");
@@ -72,6 +72,8 @@ int main (int argc, const char * const argv[]) {
 	  int t2 = atoi(argv[2]);
 	  int t3 = atoi(argv[3]);
 	  int mode = atoi(argv[4]);
+	  char op = argv[5][0];
+
 	  if (t1 < 5|| t1 > 8 || t1 == 6) {
 	    printf("ERROR: Track 1 bits must be either 5,7 or 8\n");
 	  
@@ -102,11 +104,37 @@ int main (int argc, const char * const argv[]) {
 		printf("Initialized MSR605.\n");
 
 		/* read card */
-		while(1) {
-		  
+
+		if(op == 'w') {
+			//magnetic_stripe_t d;
+			data = (magnetic_stripe_t *) malloc(sizeof(magnetic_stripe_t));
+
+			msr->setHiCo();
+		
+			data->track1 = (unsigned char *)malloc(6);
+			strncpy((char *)data->track1, "\xaa\xbb\xcc\xdd\xee\xff", 6);
+			data->t1_len = 6;
+			//data->track1 = NULL;
+			//data->t1_len = 0;
+
+			data->track2 = (unsigned char *)malloc(4);
+			strncpy((char *)data->track2, "\xde\xad\xbe\xef", 4);
+			data->t2_len = 4;
+			//data->track2 = NULL;
+			//data->t2_len = 0;
+		
+			data->track3 = NULL;
+			data->t3_len = 0;
+
+			printf("Waiting for swipe...\n");
+
+			msr->writeCard_raw(data, t1, t2, t3);
+
+			msr->free_ms_data(data);
+		} else if (op == 'r') {
 		  msr->setAllLEDOff();
 		  printf("Waiting for swipe...\n");
-		  switch(mode){
+		  switch(mode) {
 		    case 1:
 			    data=msr->readCard_raw(t1, t2, t3);
 			    printTrack("Track 1", data->track1, data->t1_len);
@@ -121,6 +149,9 @@ int main (int argc, const char * const argv[]) {
 			    break;
 		  }
 		  msr->free_ms_data(data);
+		} else if (op == 'e') { // erase
+			printf("Waiting for swipe...\n");
+			msr->eraseCard(true, false, false);
 		}
 				
 		/* close connection */
