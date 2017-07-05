@@ -21,3 +21,7 @@ Examples
 `./msr605 8 8 8 1 w` Write Raw, BPC 8 8 8
 
 `./msr605 8 8 8 1 e` Erase
+
+TODO
+=======
+Add functionalities remaining, like write in ISO mode, or change the BPI
