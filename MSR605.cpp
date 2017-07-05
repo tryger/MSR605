@@ -106,25 +106,35 @@ int main (int argc, const char * const argv[]) {
 		/* read card */
 
 		if(op == 'w') {
-			magnetic_stripe_t d;
-		
-			//d.track1 = (unsigned char *)malloc(1);
-			//d.track1[0] = '\x00';
-			d.t1_len = 0;
-		
-			d.track2 = (unsigned char *)malloc(6);
-			strncpy((char *)d.track2, "\xaa\xaa\xaa\xaa\xaa\xaa", 6);
-			d.t2_len = 6;
-		
-			//d.track3 = (unsigned char *)malloc(1);
-			//d.track3[0] = '\x00';
-			d.t3_len = 0;
+			//magnetic_stripe_t d;
+			data = (magnetic_stripe_t *) malloc(sizeof(magnetic_stripe_t));
 
-			msr->writeCard_raw(&d);
-		} else {
+			msr->setHiCo();
+		
+			data->track1 = (unsigned char *)malloc(6);
+			strncpy((char *)data->track1, "\xaa\xbb\xcc\xdd\xee\xff", 6);
+			data->t1_len = 6;
+			//data->track1 = NULL;
+			//data->t1_len = 0;
+
+			data->track2 = (unsigned char *)malloc(4);
+			strncpy((char *)data->track2, "\xde\xad\xbe\xef", 4);
+			data->t2_len = 4;
+			//data->track2 = NULL;
+			//data->t2_len = 0;
+		
+			data->track3 = NULL;
+			data->t3_len = 0;
+
+			printf("Waiting for swipe...\n");
+
+			msr->writeCard_raw(data, t1, t2, t3);
+
+			msr->free_ms_data(data);
+		} else if (op == 'r') {
 		  msr->setAllLEDOff();
 		  printf("Waiting for swipe...\n");
-		  switch(mode){
+		  switch(mode) {
 		    case 1:
 			    data=msr->readCard_raw(t1, t2, t3);
 			    printTrack("Track 1", data->track1, data->t1_len);
@@ -139,6 +149,9 @@ int main (int argc, const char * const argv[]) {
 			    break;
 		  }
 		  msr->free_ms_data(data);
+		} else if (op == 'e') { // erase
+			printf("Waiting for swipe...\n");
+			msr->eraseCard(true, false, false);
 		}
 				
 		/* close connection */

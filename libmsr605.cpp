@@ -31,16 +31,15 @@
 #include <errno.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
-#include <iostream>
 #include <signal.h>
 
-#define DEBUG
+//#define DEBUG
 
 using namespace std;
 
 //VERSION ALPHA
 
-static inline uint8_t swap_bits(uint8_t n) {
+static inline uint8_t swap_bits(register uint8_t n) {
   n = ((n&0xF0) >>4 ) | ( (n&0x0F) <<4);
   n = ((n&0xCC) >>2 ) | ( (n&0x33) <<2);
   n = ((n&0xAA) >>1 ) | ( (n&0x55) <<1);
@@ -74,13 +73,7 @@ bool MSR605::isConnected()
 void MSR605::init()
 {
 	if(!isConnected()) throw "Unable to initialize: Not connected to device.";
-	this->setRedLEDOn();
-	sleep(1);
-	this->setYellowLEDOn();
-	sleep(1);
-	this->setGreenLEDOn();
-	sleep(1);
-	this->setAllLEDOff();
+
 	if(!this->commTest()) throw "Unable to initialize: Communications Test failed.";
 	this->sendReset();
 }
@@ -463,36 +456,11 @@ void MSR605::decode_5bit(unsigned char *buf, unsigned int len, unsigned char * &
 
 void MSR605::decode_8bit(unsigned char *buf, unsigned int len, unsigned char * &outBuf, unsigned int &outLen)
 {
-	unsigned int bytes = len;
-	//unsigned int bytes = (len * 8) /8;
 	outBuf = (unsigned char *)malloc(len);
 	unsigned int tempLen = 0;
-	//char *test;
-	//unsigned int *len_ptr=len;
-	char *test;	
-	test=(char*)outBuf;
 
 	for(int i=0; i < len; i++)
-		test[i] = buf[i];
-	//printf("\n");
-
-	/*for(int y = 0; y < (len/8); y++) {
-	if(*buf == 0x00 || buf[1] == 0x00) break;
-	
-	test[0] =buf[0];
-	test[1] =buf[1]; 
-	test[2] = buf[2];  
-	test[3] = buf[3]; 
-	test[4] = buf[4]; 
-	test[5] = buf[5]; 
-	test[6] = buf[6]; 
-	test[7] = buf[7];
-	
-	tempLen += 8;
-	buf += 8;
-	test += 8;
-	
-	}*/
+		outBuf[i] = buf[i];
 	outLen=len;
 
 }
@@ -640,82 +608,128 @@ void MSR605::getFirmware()
 
 void MSR605::setHiCo()
 {
-	short res;
-	write_bytes(MSR_HICO, 2);
-	read_bytes((unsigned char *)&res, 2);
-	if(res != 0x1B30)
-		throw "FAILED to set HiCo!";
+	unsigned char res[2];
 
-	printf("Interface set to HiCo");
-		
+	write_bytes(MSR_HICO, 2);
+	read_bytes(res, 2);
+	if(res[0] != MSR_ESC)
+		throw "Failed to set HiCo: Invalid response";
+	if(res[1] != MSR_STATUS_OK)
+		throw "Failed to set HiCo: Error code";
+
+	printf("Interface set to HiCo\n");
 }
 /*-------------------------------------------------------------------------------------*/
 
 void MSR605::setLoCo()
 {
 
-	short res;
+	unsigned char res[2];
+
 	write_bytes(MSR_LOCO, 2);
-	read_bytes((unsigned char *)&res, 2);
-	if(res != 0x1B30)
-		throw "FAILED to set LoCo!";
+	read_bytes(res, 2);
+	if(res[0] != MSR_ESC)
+		throw "Failed to set LoCo: Invalid response";
+	if(res[1] != MSR_STATUS_OK)
+		throw "Failed to set LiCo: Error code";
 	
-	printf("Interface set to LoCo");
+	printf("Interface set to LoCo\n");
 }
 
-unsigned char reverseByte(register unsigned char b) {
-   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-   return b;
-}
-
-void reverseTrack(unsigned char *t, int len)
+/*-------------------------------------------------------------------------------------*/
+void MSR605::encode_8bit(unsigned char *buf, unsigned int len) //, unsigned char *outBuf, unsigned int &outlen)
 {
-	for(int i=0; i < len; i++) {
-		t[i] = reverseByte(t[i]);
-		printf("%02X ", t[i]);
+	for(int i=0; i < len; i++)
+		buf[i] = swap_bits(buf[i]);
+}
+
+/*-------------------------------------------------------------------------------------*/
+void MSR605::writeTrack_raw(unsigned int trackNum, unsigned char *buf, unsigned int len, char trackOptions)
+{
+	short trackHeader = 0x1b | (trackNum << 8);
+
+	write_bytes((char *) &trackHeader, 2);
+	write_bytes((char *) &len, 1);
+
+	if(len > 0) {
+		// TODO: add more encodings
+
+		if(trackOptions == TRACK_8BIT) encode_8bit(buf, len);
+		//else if(trackOptions == TRACK_7BIT) encode_7bit(buf, len);
+		//else if(trackOptions == TRACK_5BIT) encode_5bit(buf, len);
+		else throw "Unable to write data: Invalid track encoding";
+
+		write_bytes((char *) buf, len);
 	}
-	printf("\n");
 }
 
-void MSR605::writeCard_raw(magnetic_stripe_t *t)
+/*-------------------------------------------------------------------------------------*/
+void MSR605::writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3)
 {
-	unsigned char len[2];
+	unsigned char ack[2];
+
+
+	if(!isConnected()) {
+		throw "Unable to read card: Not connected to device.";
+	}
+
+	this->setBPC(bpc1, bpc2, bpc3);
 
 	write_bytes(MSR_WRITE_RAW, 2);
+
+
 	write_bytes(MSR_DATA_HEADER, 2);
 
-	write_bytes("\x1b\x01", 2);
-	write_bytes((char *) &t->t1_len, 1);
-	if(t->t1_len != 0) {
-		reverseTrack(t->track1, t->t1_len);
-		write_bytes((char *) t->track1, t->t1_len);
-	}
-
-	write_bytes("\x1b\x02", 2);
-	write_bytes((char *) &t->t2_len, 1);
-	if(t->t2_len != 0) {
-		reverseTrack(t->track2, t->t2_len);
-		write_bytes((char *) t->track2, t->t2_len);
-	}
-	
-	write_bytes("\x1b\x03", 2);
-	write_bytes((char *) &t->t3_len, 1);
-	if(t->t3_len != 0) {
-		reverseTrack(t->track3, t->t3_len);
-		write_bytes((char *) t->track3, t->t3_len);
-	}
+	writeTrack_raw(1, data->track1, data->t1_len, bpc1);
+	writeTrack_raw(2, data->track2, data->t2_len, bpc2);
+	writeTrack_raw(3, data->track3, data->t3_len, bpc3);
 
 	write_bytes(MSR_DATA_END, 3);
 
-	printf("Waiting for swipe...\n");
-	fflush(stdout);
+	read_bytes(ack, 2);
 
-	read_bytes(len, 2);
+	if(ack[0] != MSR_ESC)
+		throw "Unable to perform write operation: Invalid response";
 
-	if(len[1] == '\x30')
-		printf("Successfully writen!\n");
-	else
-		printf("WRITE ERROR\n");
+	if(ack[1] == MSR_STATUS_OK) {
+		printf("WRITE OK!\n");
+	} else {
+		printf("Error code: %02X\n", ack[1]);
+		
+		switch(ack[1]) {
+			case MSR_STATUS_WRITE_READ_ERROR:
+				throw "Unable to perform write operation: Write or read error";
+
+			case MSR_STATUS_COMMAND_FORMAT_ERROR:
+				throw "Unable to perform write operation: Command format error";
+
+			case MSR_STATUS_INVALID_COMMAND:
+				throw "Unable to perform write operation: Invalid command";
+
+			case MSR_STATUS_INVALID_SWIPE_WRITE_MODE:
+				throw "Unable to perform write operation: Invalid card swipe";
+		}
+	}
+}
+
+void MSR605::eraseCard(bool t1, bool t2, bool t3)
+{
+	char select = 0;
+	unsigned char res[2];
+
+	if(t2 || t3) {
+		// if only t1, select byte is 0
+		select |= ( t1 | (t2 << 1) | (t3 << 2) );
+	}
+
+	write_bytes(MSR_ERASE, 2);
+	write_bytes(&select, 1);
+
+	read_bytes(res, 2);
+	if(res[0] != MSR_ESC)	
+		throw "Failed to erase card: Invalid response";
+	if(res[1] != MSR_STATUS_OK)
+		throw "Failed to erase card: Error code";
+
+	printf("ERASE OK!\n");
 }
