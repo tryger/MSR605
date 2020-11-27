@@ -572,6 +572,7 @@ void MSR605::connect(char *devName)
 	options.c_cflag = CS8 | CREAD | CLOCAL;
 	options.c_oflag = 0;
 	options.c_iflag = 0;
+	options.c_lflag = 0;
 	
 	/* set baud rate */
 	cfsetispeed(&options, B9600);
