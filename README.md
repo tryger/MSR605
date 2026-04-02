@@ -12,7 +12,7 @@ Added:
 
 You are free to fork this repo, add the functionalities you need, and do a push request.
 
-Modified a little program for testing... (don't forget to install the library or set the loader path to the current dir)
+Modified a little program for testing...
 
 Examples
 =======
