@@ -13,6 +13,7 @@
 #define BAUDRATE 9600
 
 /* MSR 206 Commands */
+#define MSR_ESC 0x1b
 #define MSR_RESET "\x1b\x61"
 #define MSR_COMM_TEST "\x1b\x65"
 #define MSR_COMM_TEST_ACK "\x1b\x79"
@@ -22,9 +23,7 @@
 #define MSR_ALL_LIGHTS_OFF "\x1b\x81"
 #define MSR_ALL_LIGHTS_ON "\x1b\x82"
 #define MSR_SET_BPC "\x1b\x6f"
-#define MSR_SET_BPC_ACK "\x1b\x30"
-#define MSR_READ_RAW "\x1b\x6d"
-#define MSR_READ_ACK "\x1b\x73"
+#define MSR_READ_ISO "\x1b\x72"
 #define MSR_WRITE_ISO "\x1b\x77"
 #define MSR_CHECK_ZEROS "\x1b\x6c"
 #define MSR_END_READ "\x3f\x1c\x1b"
@@ -32,8 +31,14 @@
 #define MSR_HICO "\x1b\x78"
 #define MSR_LOCO "\x1b\x79"
 
+#define MSR_SET_BPC_ACK "\x1b\x30"
+#define MSR_READ_RAW "\x1b\x6d"
 #define MSR_WRITE_RAW "\x1b\x6e"
-#define MSR_READ_ISO "\x1b\x72"
+#define MSR_ERASE "\x1b\x63"
+
+
+#define MSR_DATA_HEADER "\x1b\x73"
+#define MSR_DATA_END "\x3f\x1c\x1b"
 
 
 /* MSR Status Byte Read */
@@ -86,7 +91,9 @@ class MSR605
 		
 		/* card commands */
 		magnetic_stripe_t *readCard_raw(char track1_format, char track2_format, char track3_format);
-                magnetic_stripe_t *readCard_iso(char track1_format, char track2_format, char track3_format);
+        magnetic_stripe_t *readCard_iso(char track1_format, char track2_format, char track3_format);
+
+		void writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3);
 
 		
 		/* utility functions */
@@ -96,7 +103,12 @@ class MSR605
 		void decode_8bit(unsigned char *buf, unsigned int len, unsigned char * &outBuf, unsigned int &outlen);
 		void readTrack1(unsigned char * &outBuf, unsigned int &outLen, char trackOptions);
 		void readTrack23(unsigned char * &outBuf, unsigned int &outLen, char trackOptions);
-                void readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char trackOptions);
+        void readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char trackOptions);
+        void encode_8bit(unsigned char *buf, unsigned int len);
+        void writeTrack_raw(unsigned int trackNum, unsigned char * outBuf, unsigned int outLen, char trackOptions);
+
+        void eraseCard(bool t1, bool t2, bool t3);
+		
 		
 
 		/* memory stuff */
@@ -115,6 +127,9 @@ class MSR605
 		void getLeadingZeros(leading_zeros_t *zeros);
 		void getFirmware();
 		void getModel();
+
+		void setHiCo();
+		void setLoCo();
 		
 	private:
 		int fd;
