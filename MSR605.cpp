@@ -33,6 +33,15 @@ void printTrackiso(const char *msg, unsigned char *buf, unsigned int len)
 	printf("\n");
 }
 
+static bool is_hex(const char *hex)
+{
+	int len = strlen(hex);
+	if (len == 0 || len % 2 != 0) return false;
+	for (int i = 0; i < len; i++)
+		if (!isxdigit((unsigned char)hex[i])) return false;
+	return true;
+}
+
 static unsigned char *parse_hex(const char *hex, int *out_len)
 {
 	int len = strlen(hex) / 2;
@@ -158,6 +167,10 @@ int main(int argc, char *argv[])
 		printf("ERROR: --bulk/-B only applies to -w/--write\n");
 		return 1;
 	}
+
+	if (hex1 && !is_hex(hex1)) { printf("ERROR: -1/--track1 must be a valid hex string\n"); return 1; }
+	if (hex2 && !is_hex(hex2)) { printf("ERROR: -2/--track2 must be a valid hex string\n"); return 1; }
+	if (hex3 && !is_hex(hex3)) { printf("ERROR: -3/--track3 must be a valid hex string\n"); return 1; }
 
 	if (debug) msr->setDebug(true);
 	signal(SIGINT, sigproc);
