@@ -33,8 +33,6 @@
 #include <sys/ioctl.h>
 #include <signal.h>
 
-//#define DEBUG
-
 using namespace std;
 
 //VERSION ALPHA
@@ -57,6 +55,12 @@ void catch_alarm(int sig_num)
 MSR605::MSR605()
 {
 	fd = -1;
+	debug = false;
+}
+/*-------------------------------------------------------------------------------------*/
+void MSR605::setDebug(bool enable)
+{
+	debug = enable;
 }
 /*-------------------------------------------------------------------------------------*/
 MSR605::~MSR605()
@@ -86,11 +90,11 @@ int MSR605::write_bytes(char *buf, int num)
 	ret = write(this->fd, buf, num);
 	if(ret <= 0) throw "Unable to send data: write() failed";
 
-	#ifdef DEBUG
-	printf("Sent Data(%d bytes): ", num);
+	if (this->debug) {
+		printf("> [%d] ", num);
 	for(int x = 0; x < num; x++) printf("%02hhx ", buf[x]);
 	printf("\n");
-	#endif
+	}
 	
 	return ret;
 }
@@ -109,11 +113,11 @@ int MSR605::read_bytes(unsigned char *buf, int num)
 		if(ret > 0) temp += ret;
 	}
 	
-	#ifdef DEBUG
-	printf("Received Data(%d bytes): ", num);
+	if (this->debug) {
+		printf("< [%d] ", num);
 	for(int x = 0; x < num; x++) printf("%02hhx ", buf[x]);
 	printf("\n");
-	#endif
+	}
 	
 	return num;
 }
@@ -128,7 +132,8 @@ void MSR605::readTrack1(unsigned char * &outBuf, unsigned int &outLen, char trac
 	
 	if(memcmp(buf, "\x1b", 1) != 1) {
 	    read_bytes((unsigned char*)&buf, 1);
-	    printf("Track Header %02x\n",buf[0]);
+		if (this->debug)
+	    	printf("Track Header %02x\n",buf[0]);
 	
 	    for(int i=0;i<254;i++){
 	      read_bytes((unsigned char*)&buf, 1);
@@ -143,18 +148,16 @@ void MSR605::readTrack1(unsigned char * &outBuf, unsigned int &outLen, char trac
 	}
 
 	len++;
-	#ifdef DEBUG
-	printf("\nTrying to read data: %d\n",len);
-	#endif
+	if (this->debug)
+		printf("\nTrying to read data: %d\n",len);
 	//read_bytes((unsigned char*)&buf2, len);
 	decode_8bit((unsigned char*)&buf2, len, outBuf, outLen);	
 	
 	//if(trackOptions == TRACK_7BIT) decode_7bit((unsigned char*)&buf2, len, outBuf, outLen);
 	//if(trackOptions == TRACK_5BIT) decode_5bit((unsigned char*)&buf2, len, outBuf, outLen);
 	//if(trackOptions == TRACK_8BIT) decode_8bit((unsigned char*)&buf2, len, outBuf, outLen);
-	#ifdef DEBUG
-	printf("\nTrack complete\n");
-	#endif
+	if (this->debug)
+		printf("\nTrack complete\n");
 }
 
 void MSR605::readTrack23(unsigned char * &outBuf, unsigned int &outLen, char trackOptions)
@@ -165,7 +168,7 @@ void MSR605::readTrack23(unsigned char * &outBuf, unsigned int &outLen, char tra
 	/* track header */
 	read_bytes((unsigned char*)&buf, 1);
 	
-	 printf("Track Header %02x\n",buf[0]);
+	printf("Track Header %02x\n",buf[0]);
 	
 	    for(int i=0;i<254;i++){
 	      read_bytes((unsigned char*)&buf, 1);
@@ -178,18 +181,16 @@ void MSR605::readTrack23(unsigned char * &outBuf, unsigned int &outLen, char tra
 	      }
 	    }
 	len++;
-	#ifdef DEBUG
-	printf("\nTrying to read data: %d\n",len);
-	#endif
+	if (this->debug)
+		printf("\nTrying to read data: %d\n",len);
 	//read_bytes((unsigned char*)&buf2, len);
 	decode_8bit((unsigned char*)&buf2, len, outBuf, outLen);	
 	
 	//if(trackOptions == TRACK_7BIT) decode_7bit((unsigned char*)&buf2, len, outBuf, outLen);
 	//if(trackOptions == TRACK_5BIT) decode_5bit((unsigned char*)&buf2, len, outBuf, outLen);
 	//if(trackOptions == TRACK_8BIT) decode_8bit((unsigned char*)&buf2, len, outBuf, outLen);
-	#ifdef DEBUG
-	printf("\nTrack complete\n");
-	#endif
+	if (this->debug)
+		printf("\nTrack complete\n");
 }
 
 void MSR605::readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char trackOptions)
@@ -203,14 +204,16 @@ void MSR605::readTrack_raw(unsigned char * &outBuf, unsigned int &outLen, char t
 		throw "Unable to read data: Expected Track Header";
 	}
 
-	printf("Track Header %02x %02x\n",buf[0],buf[1]);
+	if (this->debug)
+		printf("Track Header %02x %02x\n",buf[0],buf[1]);
 
 	/* track length */
 	if(read_bytes((unsigned char*)&buf, 1) != 1) {
 		throw "Unable to read data: Expected Track Length";
 	}
 
-	printf("Track Length  %02d \n",buf[0]);
+	if (this->debug)
+		printf("Track Length  %02d \n",buf[0]);
 
 	if(buf[0] > 254) {
 		throw "Unable to read data: Invalid length received";
@@ -509,11 +512,13 @@ bool MSR605::commTest()
 	if(!isConnected()) throw "Unable to perform comm test: not connected";
 	
 	write_bytes(MSR_COMM_TEST, 2);
-	printf("Comm Test Sent...\n");	
+	if (this->debug)
+		printf("Comm Test Sent...\n");	
 	//alarm(6);
 	if(read_bytes((unsigned char*)&ack, 2) != 2) throw "Comm test failed: invalid response";
 	//alarm(6);
-	printf("Receiving Response.\n");
+	if (this->debug)
+		printf("Receiving Response.\n");
 	if(memcmp(ack, MSR_COMM_TEST_ACK, 2) == 0) return true;
 	
 	return false;
@@ -607,7 +612,7 @@ void MSR605::getFirmware()
 }
 /*-------------------------------------------------------------------------------------*/
 
-void MSR605::setHiCo()
+bool MSR605::setHiCo()
 {
 	unsigned char res[2];
 
@@ -618,11 +623,11 @@ void MSR605::setHiCo()
 	if(res[1] != MSR_STATUS_OK)
 		throw "Failed to set HiCo: Error code";
 
-	printf("Interface set to HiCo\n");
+	return true;
 }
 /*-------------------------------------------------------------------------------------*/
 
-void MSR605::setLoCo()
+bool MSR605::setLoCo()
 {
 
 	unsigned char res[2];
@@ -632,9 +637,9 @@ void MSR605::setLoCo()
 	if(res[0] != MSR_ESC)
 		throw "Failed to set LoCo: Invalid response";
 	if(res[1] != MSR_STATUS_OK)
-		throw "Failed to set LiCo: Error code";
+		throw "Failed to set LoCo: Error code";
 	
-	printf("Interface set to LoCo\n");
+	return true;
 }
 
 /*-------------------------------------------------------------------------------------*/
@@ -665,7 +670,7 @@ void MSR605::writeTrack_raw(unsigned int trackNum, unsigned char *buf, unsigned 
 }
 
 /*-------------------------------------------------------------------------------------*/
-void MSR605::writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3)
+bool MSR605::writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3)
 {
 	unsigned char ack[2];
 
@@ -692,9 +697,7 @@ void MSR605::writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char b
 	if(ack[0] != MSR_ESC)
 		throw "Unable to perform write operation: Invalid response";
 
-	if(ack[1] == MSR_STATUS_OK) {
-		printf("WRITE OK!\n");
-	} else {
+	if(ack[1] != MSR_STATUS_OK) {
 		printf("Error code: %02X\n", ack[1]);
 		
 		switch(ack[1]) {
@@ -709,11 +712,16 @@ void MSR605::writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char b
 
 			case MSR_STATUS_INVALID_SWIPE_WRITE_MODE:
 				throw "Unable to perform write operation: Invalid card swipe";
+			
+			default:
+				throw "Unable to perform write operation: Unknown error";
 		}
 	}
+
+	return true;
 }
 
-void MSR605::eraseCard(bool t1, bool t2, bool t3)
+bool MSR605::eraseCard(bool t1, bool t2, bool t3)
 {
 	char select = 0;
 	unsigned char res[2];
@@ -732,5 +740,5 @@ void MSR605::eraseCard(bool t1, bool t2, bool t3)
 	if(res[1] != MSR_STATUS_OK)
 		throw "Failed to erase card: Error code";
 
-	printf("ERASE OK!\n");
+	return true;
 }

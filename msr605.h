@@ -93,7 +93,7 @@ class MSR605
 		magnetic_stripe_t *readCard_raw(char track1_format, char track2_format, char track3_format);
         magnetic_stripe_t *readCard_iso(char track1_format, char track2_format, char track3_format);
 
-		void writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3);
+		bool writeCard_raw(magnetic_stripe_t *data, char bpc1, char bpc2, char bpc3);
 
 		
 		/* utility functions */
@@ -107,7 +107,7 @@ class MSR605
         void encode_8bit(unsigned char *buf, unsigned int len);
         void writeTrack_raw(unsigned int trackNum, unsigned char * outBuf, unsigned int outLen, char trackOptions);
 
-        void eraseCard(bool t1, bool t2, bool t3);
+        bool eraseCard(bool t1, bool t2, bool t3);
 		
 		
 
@@ -128,11 +128,14 @@ class MSR605
 		void getFirmware();
 		void getModel();
 
-		void setHiCo();
-		void setLoCo();
+		bool setHiCo();
+		bool setLoCo();
+
+		void setDebug(bool);
 		
 	private:
 		int fd;
+		bool debug;
 };
 
 #endif
